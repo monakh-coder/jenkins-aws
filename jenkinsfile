@@ -31,29 +31,48 @@ pipeline{
             }   
         }
 
-       
-        stage("Deploy to AWS"){
-            steps{
-        script{
-            echo "Deploying docker image to AWS..."
-            def dockerCmd = "sudo docker-compose -f docker-compose.yaml up --detach"
-            sshagent(['ec2-server']) {
- sh '''
-    set -e
-    mkdir -p ~/.ssh
-    chmod 700 ~/.ssh
-    HOST="${SERVER_IP#*@}"
-    ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
-    chmod 600 ~/.ssh/known_hosts
+    stage("Deploy to AWS") {
+  steps {
+    script {
+      echo "Deploying docker image to AWS..."
 
-    scp -o StrictHostKeyChecking=yes docker-compose.yaml ${SERVER_IP}:/home/ubuntu/
-    ssh -o StrictHostKeyChecking=yes ${SERVER_IP} '${dockerCmd}'
-  '''
-}
-        } 
-    }    
-}
+      sshagent(['ec2-server-key']) {
+        sh """
+          set -euxo pipefail
+
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${SERVER_IP.split('@')[1]} >> ~/.ssh/known_hosts
+
+          # Copy compose file to EC2
+          scp docker-compose.yaml ${SERVER_IP}:/home/ubuntu/docker-compose.yaml
+
+          # Run deploy on EC2 with good diagnostics
+          ssh -o StrictHostKeyChecking=no ${SERVER_IP} '
+            set -euxo pipefail
+            cd /home/ubuntu
+
+            # Check docker availability
+            sudo -n docker version
+
+            # Pick compose command
+            if sudo -n docker compose version >/dev/null 2>&1; then
+              COMPOSE="sudo -n docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE="sudo -n docker-compose"
+            else
+              echo "ERROR: Neither docker compose nor docker-compose is installed"
+              exit 1
+            fi
+
+            $COMPOSE -f docker-compose.yaml up -d
+            $COMPOSE -f docker-compose.yaml ps
+          '
+        """
+      }
     }
+  }
+}   
+    
 
     post{
         
