@@ -31,56 +31,53 @@ pipeline{
             }   
         }
 
+
+stages {
     stage("Deploy to AWS") {
-  steps {
-    script {
-      echo "Deploying docker image to AWS..."
+      steps {
+        script {
+          echo "Deploying docker image to AWS..."
 
-      sshagent(['ec2-server-key']) {
-        sh """
-          set -euxo pipefail
+          sshagent(['ec2-server-key']) {
+            sh """
+              set -euxo pipefail
 
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${SERVER_IP.split('@')[1]} >> ~/.ssh/known_hosts
+              mkdir -p ~/.ssh
+              ssh-keyscan -H ${SERVER_IP.split('@')[1]} >> ~/.ssh/known_hosts
 
-          # Copy compose file to EC2
-          scp docker-compose.yaml ${SERVER_IP}:/home/ubuntu/docker-compose.yaml
+              scp docker-compose.yaml ${SERVER_IP}:/home/ubuntu/docker-compose.yaml
 
-          # Run deploy on EC2 with good diagnostics
-          ssh -o StrictHostKeyChecking=no ${SERVER_IP} '
-            set -euxo pipefail
-            cd /home/ubuntu
+              ssh -o StrictHostKeyChecking=no ${SERVER_IP} '
+                set -euxo pipefail
+                cd /home/ubuntu
 
-            # Check docker availability
-            sudo -n docker version
+                sudo -n docker version
 
-            # Pick compose command
-            if sudo -n docker compose version >/dev/null 2>&1; then
-              COMPOSE="sudo -n docker compose"
-            elif command -v docker-compose >/dev/null 2>&1; then
-              COMPOSE="sudo -n docker-compose"
-            else
-              echo "ERROR: Neither docker compose nor docker-compose is installed"
-              exit 1
-            fi
+                if sudo -n docker compose version >/dev/null 2>&1; then
+                  COMPOSE="sudo -n docker compose"
+                elif command -v docker-compose >/dev/null 2>&1; then
+                  COMPOSE="sudo -n docker-compose"
+                else
+                  echo "ERROR: Neither docker compose nor docker-compose is installed"
+                  exit 1
+                fi
 
-            $COMPOSE -f docker-compose.yaml up -d
-            $COMPOSE -f docker-compose.yaml ps
-          '
-        """
+                $COMPOSE -f docker-compose.yaml up -d
+                $COMPOSE -f docker-compose.yaml ps
+              '
+            """
+          }
+        }
       }
     }
   }
-}   
-    
 
-    post{
-        
-        success{
-            echo "The pipline succesfuly depoyed the app to AWS"
-        }
-        failure{
-            echo "The pipline failed to deploy the app to AWS!"
-        }
+  post {
+    success {
+      echo "The pipeline successfully deployed the app to AWS"
     }
+    failure {
+      echo "The pipeline failed to deploy the app to AWS!"
+    }
+  }
 }
