@@ -37,7 +37,7 @@ pipeline{
         script{
             echo "Deploying docker image to AWS..."
             def dockerCmd = "sudo docker-compose -f docker-compose.yaml up --detach"
-            sshagent(['ec2-server-key']) {
+            sshagent(['ec2-server']) {
     sh "mkdir -p ~/.ssh"
     sh "ssh-keyscan -H ${SERVER_IP.split('@')[1]} >> ~/.ssh/known_hosts"
     sh "scp docker-compose.yaml ${SERVER_IP}:/home/ubuntu"
