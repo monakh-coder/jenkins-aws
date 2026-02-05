@@ -31,8 +31,6 @@ pipeline{
             }   
         }
 
-
-stages {
     stage("Deploy to AWS") {
       steps {
         script {
@@ -70,7 +68,7 @@ stages {
         }
       }
     }
-  }
+  
 
   post {
     success {
